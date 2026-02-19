@@ -47,6 +47,8 @@ def main() -> None:
         eval_metric="logloss",
         n_jobs=4,
     )
+    # RANDOM LABEL TEST
+    y_train = y_train.sample(frac=1.0, random_state=42)
 
     model.fit(X_train, y_train)
 

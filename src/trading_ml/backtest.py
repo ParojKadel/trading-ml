@@ -17,8 +17,8 @@ def simple_backtest_hold(
     df_15m: pd.DataFrame,
     proba_up: pd.Series,
     horizon_bars: int = 4,        # 4 x 15m = 1 hour
-    fee_bps: float = 8.0,         # rough placeholder
-    slippage_bps: float = 4.0,    # rough placeholder
+    fee_bps: float = 16.0,         # rough placeholder
+    slippage_bps: float = 8.0,    # rough placeholder
     long_th: float = 0.55,
     short_th: float = 0.45,
 ) -> pd.DataFrame:
@@ -129,12 +129,12 @@ def _time_split_idx(n: int, train_frac=0.7, val_frac=0.15):
 def main() -> None:
     # --- Frozen config (picked on VAL) ---
     horizon_bars = 4
-    long_th = 0.70
+    long_th = 1.0
     short_th = 0.25
 
     # Use realistic-ish baseline costs first (not doubled)
-    fee_bps = 8.0
-    slippage_bps = 4.0
+    fee_bps = 12.0
+    slippage_bps = 6.0
 
     # --- Load data ---
     df_15m = pd.read_parquet("data/raw/binanceusdm_ETHUSDT_15m.parquet").sort_index()

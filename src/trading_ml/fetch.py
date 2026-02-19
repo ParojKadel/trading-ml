@@ -77,8 +77,8 @@ def main() -> None:
     cfg = FetchConfig()
     Path(cfg.out_path).parent.mkdir(parents=True, exist_ok=True)
 
-    # 30 days of 1m data
-    minutes = 30 * 24 * 60
+    # 180  days of 1m data
+    minutes = 180 * 24 * 60
     df = fetch_history_minutes(cfg, minutes=minutes)
 
     df.to_parquet(cfg.out_path)
