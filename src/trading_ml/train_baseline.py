@@ -21,6 +21,9 @@ def time_split(X: pd.DataFrame, y: pd.Series, train_frac=0.7, val_frac=0.15):
 
     return (X_train, y_train), (X_val, y_val), (X_test, y_test)
 
+RANDOM_LABEL_TEST = False
+RANDOM_LABEL_SEED = 42
+
 
 def main() -> None:
     df_15m = pd.read_parquet("data/raw/binanceusdm_ETHUSDT_15m.parquet").sort_index()
@@ -47,8 +50,8 @@ def main() -> None:
         eval_metric="logloss",
         n_jobs=4,
     )
-    # RANDOM LABEL TEST
-    y_train = y_train.sample(frac=1.0, random_state=42)
+    if RANDOM_LABEL_TEST:
+        y_train = y_train.sample(frac=1.0, random_state=RANDOM_LABEL_SEED)
 
     model.fit(X_train, y_train)
 
