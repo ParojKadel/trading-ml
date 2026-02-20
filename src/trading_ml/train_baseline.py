@@ -67,7 +67,7 @@ def main() -> None:
     eval_split("TEST", X_test, y_test)
 
     Path("models").mkdir(exist_ok=True)
-    out_path = Path("models/xgb_baseline.json")
+    out_path = Path("models/xgb_baseline.json") if not RANDOM_LABEL_TEST else Path("models/xgb_randomlabels.json")
     model.save_model(out_path.as_posix())
     print(f"\nSaved model to {out_path}")
 
