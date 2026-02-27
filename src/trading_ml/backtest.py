@@ -17,10 +17,11 @@ def simple_backtest_hold(
     df_15m: pd.DataFrame,
     proba_up: pd.Series,
     horizon_bars: int = 4,        # 4 x 15m = 1 hour
-    fee_bps: float = 12.0,
-    slippage_bps: float = 6.0,
-    long_th: float = 0.70,
-    short_th: float = 0.25,
+    fee_bps: float = 20.0,
+    slippage_bps: float = 10.0,
+    long_th: float = 0.80,
+    short_th: float = 0.20,
+    size: float = 1.0,            # fraction of equity allocated per trade
 ) -> pd.DataFrame:
     """
     1h-consistent backtest:
@@ -29,7 +30,15 @@ def simple_backtest_hold(
       - PnL is paid over close(t) -> close(t+horizon_bars)
       - Fees/slippage applied on entry and exit (2 turns total) per trade
       - Equity is tracked on the 15m grid (returns realized at exit bar)
+
+    size:
+      - position sizing as fraction of equity used each trade
+      - size=1.0 means full-compounding
+      - size=0.2 means use 20% of equity per trade (returns + costs scale down)
     """
+    if not (0.0 <= size <= 1.0):
+        raise ValueError(f"size must be in [0,1], got {size}")
+
     close = df_15m["close"].reindex(proba_up.index).astype("float64")
 
     # Future return over horizon: ret_h[t] = close[t+H]/close[t] - 1
@@ -38,7 +47,10 @@ def simple_backtest_hold(
     idx = proba_up.index
     n = len(idx)
 
+    # Position on 15m grid (held during a trade)
     pos = pd.Series(0.0, index=idx)
+
+    # Strategy return realized at exit bars only
     strat_ret = pd.Series(0.0, index=idx)
 
     cost = (fee_bps + slippage_bps) / 10_000.0  # bps -> fraction
@@ -49,6 +61,7 @@ def simple_backtest_hold(
     while i < n:
         p = float(proba_up.iloc[i])
 
+        # decide signal
         signal = 0.0
         if p > long_th:
             signal = 1.0
@@ -64,13 +77,14 @@ def simple_backtest_hold(
         if exit_i >= n:
             break
 
+        # mark held position for exposure reporting
         pos.iloc[entry_i:exit_i] = signal
 
         gross = float(signal * ret_h.iloc[entry_i])
 
-        # entry + exit costs
+        # entry + exit costs (2 turns), then apply sizing
         tc = 2.0 * cost
-        net = gross - tc
+        net = size * (gross - tc)
 
         strat_ret.iloc[exit_i] += net
 
@@ -80,9 +94,10 @@ def simple_backtest_hold(
                 "exit_ts": idx[exit_i],
                 "side": "LONG" if signal > 0 else "SHORT",
                 "proba": p,
-                "gross_ret": gross,
-                "tc": tc,
+                "gross_ret": size * gross,
+                "tc": size * tc,
                 "net_ret": net,
+                "size": size,
             }
         )
 
@@ -104,7 +119,7 @@ def simple_backtest_hold(
     out.attrs["trades"] = (
         pd.DataFrame(trades)
         if trades
-        else pd.DataFrame(columns=["entry_ts", "exit_ts", "side", "proba", "gross_ret", "tc", "net_ret"])
+        else pd.DataFrame(columns=["entry_ts", "exit_ts", "side", "proba", "gross_ret", "tc", "net_ret", "size"])
     )
 
     return out
@@ -126,11 +141,15 @@ def main() -> None:
     MODE = "real"  # "real" | "permute" | "random"
 
     horizon_bars = 4            # 1 hour on 15m grid
-    long_th = 0.70
-    short_th = 0.25
+    long_th = 0.80
+    short_th = 0.20
 
-    fee_bps = 12.0
-    slippage_bps = 6.0
+    # Costs per side in bps; backtest applies entry+exit = 2 turns
+    fee_bps = 20.0
+    slippage_bps = 10.0
+
+    # NEW: position sizing
+    size = 0.20  # 20% of equity per trade
 
     model_path = "models/xgb_baseline.json"
 
@@ -164,12 +183,17 @@ def main() -> None:
         proba_used.index = proba_real.index  # keep timestamps
     elif MODE == "random":
         rng = np.random.default_rng(42)
-        proba_used = pd.Series(rng.uniform(0.0, 1.0, len(proba_real)), index=proba_real.index, name="proba_up")
+        proba_used = pd.Series(
+            rng.uniform(0.0, 1.0, len(proba_real)),
+            index=proba_real.index,
+            name="proba_up",
+        )
     else:
         raise ValueError(f"Unknown MODE={MODE}. Use 'real', 'permute', or 'random'.")
 
     print(f"MODE: {MODE}")
     print(f"Model loaded from: {model_path}")
+    print(f"Position size: {size:.2f}")
     print("proba head:")
     print(proba_used.head())
 
@@ -187,6 +211,7 @@ def main() -> None:
         slippage_bps=slippage_bps,
         long_th=long_th,
         short_th=short_th,
+        size=size,
     )
 
     trades = df_bt.attrs["trades"]
