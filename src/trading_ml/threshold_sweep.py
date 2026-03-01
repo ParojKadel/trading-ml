@@ -71,12 +71,12 @@ def main() -> None:
     X = data.drop(columns=[y.name])
     y = data[y.name].astype("int64")
 
-    # --- Time split ---
+
     i_train, i_val, i_test = time_split_idx(len(X))
     X_train, y_train = X.iloc[i_train], y.iloc[i_train]
     X_val, y_val = X.iloc[i_val], y.iloc[i_val]
 
-    # --- Train baseline model on TRAIN only ---
+
     model = XGBClassifier(
         n_estimators=400,
         max_depth=4,
@@ -91,19 +91,18 @@ def main() -> None:
     )
     model.fit(X_train, y_train)
 
-    # --- Predict probabilities on VAL only ---
+
     proba_val = pd.Series(
         model.predict_proba(X_val)[:, 1],
         index=X_val.index,
         name="proba_up",
     )
 
-    # --- Sweep thresholds ---
     rows = []
     for long_th in long_grid:
         for short_th in short_grid:
             if short_th >= long_th:
-                continue  # must have a gap
+                continue  
 
             df_bt = simple_backtest_hold(
                 df_15m=df_15m,
@@ -113,6 +112,7 @@ def main() -> None:
                 slippage_bps=slippage_bps,
                 long_th=long_th,
                 short_th=short_th,
+                size = 0.2,
             )
             s = summarize_backtest(df_bt)
             s.update({"long_th": long_th, "short_th": short_th})
@@ -120,8 +120,6 @@ def main() -> None:
 
     out = pd.DataFrame(rows)
 
-    # Rank: prioritize robustness-ish metrics over raw return
-    # (You can change this later.)
     out = out.sort_values(
         by=["profit_factor", "total_return", "max_drawdown"],
         ascending=[False, False, True],
